@@ -393,11 +393,28 @@ function vLote(id){
 }
 let MAPROAD={L3:'all',L5:'all'};
 function colorFor(d,R){return !isFinite(d)?'#c4ccd6':d<=R?'#0066ff':'#ff2d55'}
+function byIdTmp(g){return {};}
 function paintMap(id){
   const g=GRAPH[id],sel=S.sel[id],R=S.R[id],a=analyze(id,sel,R);
   const OV={s445:{ly:-14},fm:{ly:-14},brocha:{ly:26},ibirapi:{ly:26},corr:{lx:-4,anc:'end'},smv:{lx:0,ly:28,anc:'middle'},cari:{lx:0,ly:-14},cocos:{ly:-14,lx:-6,anc:'end'},car:{ly:26}};
-  const SH={'Santa Maria da Vitória':'Sta. Maria da Vitória','Ubaitaba / Aurelino Leal':'Ubaitaba'};
+  const SH={'Ilhéus (BA-415)':'Ilhéus','Santa Maria da Vitória':'Sta. Maria da Vitória','Ubaitaba / Aurelino Leal':'Ubaitaba'};
   g.nodes.forEach(n=>{if(OV[n.id])Object.assign(n,OV[n.id]);});
+  const ROADPOS={L3:{'BR-101':[440,264],'BR-030':[8,140],'BR-415':[212,146],'BR-418':[1140,300]}};
+  const roadsD=g.roads.map(r=>{const p=(ROADPOS[id]||{})[r[0]];return p?[r[0],p[0],p[1]]:r;});
+  if(id==='L3'){ /* organiza os nomes da linha principal em níveis para não se sobreporem */
+    Object.assign(byIdTmp(g),{});
+    const extra={b918:{ly:-8},b913:{ly:12},s507:{lx:-10,anc:'end',ly:26},s445:{ly:26,lx:10,anc:'start'},s679:{ly:26},c67:{ly:30,lx:14},i19:{lx:-10,anc:'end',ly:-22},mp:{ly:20},s938:{lx:14,anc:'start',ly:26},m93:{ly:-2}};
+    g.nodes.forEach(n=>{if(extra[n.id])Object.assign(n,extra[n.id]);});
+    const spine=g.nodes.filter(n=>n.y===225&&n.label);
+    const wd=n=>(SH[n.label]||n.label).length*(n.cand?9.4:7.4)+4;
+    const x0=n=>{const w=wd(n),x=n.x+n.lx;return n.anc==='end'?x-w:n.anc==='middle'?x-w/2:x;};
+    const lay=(arr,base,step,maxL)=>{const edge=[];arr.sort((p,q)=>x0(p)-x0(q)).forEach(n=>{let L=0;while(L<maxL-1&&edge[L]!==undefined&&x0(n)<edge[L]+6)L++;edge[L]=x0(n)+wd(n);n.ly=base+(base<0?-1:1)*step*L-(n.cand&&base<0?0:0);n.lead=L>0;});};
+    const BELOW=['s919','s938'],ABOVE=['s808'];
+    const below=spine.filter(n=>BELOW.includes(n.id)||(n.cand&&!ABOVE.includes(n.id)));
+    const above=spine.filter(n=>!below.includes(n));
+    above.forEach(n=>{if(n.anc!=='end')n.anc='middle';n.lx=n.lx||0;n.ly=-14;});
+    lay(above,-14,22,4);lay(below,26,22,3);
+  }
   const byId={};g.nodes.forEach(n=>byId[n.id]=n);
   const dEdge={};a.per.forEach(p=>dEdge[p.e.id]=p.d);
   let s=`<svg viewBox="0 0 ${g.viewBox[0]} ${g.viewBox[1]}" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Arial,sans-serif">`;
@@ -409,7 +426,7 @@ function paintMap(id){
   g.edges.filter(e=>e.kind==='gap'&&e.pts).forEach(e=>{s+=`<text x="${(e.pts[1][0]+e.pts[2][0])/2+10}" y="${(e.pts[1][1]+e.pts[2][1])/2}" font-size="14" fill="#5b6774">≈ ${nf(e.km)} km fora do lote</text>`;});
   g.edges.filter(e=>e.kind==='lot').forEach(e=>{const d=dEdge[e.id];const dash=e.surf==='IMP'?'10 5':e.surf==='LEN'?'1 6':'';const cap=e.surf==='LEN'?'round':'butt';
     s+=`<path d="${path(e)}" fill="none" stroke="${colorFor(d,R)}" stroke-width="5" stroke-linecap="${cap}" ${dash?`stroke-dasharray="${dash}"`:''}><title>${esc(e.road)} · ${nf(e.km)} km · ${e.surf==='PAV'?'pavimentado':e.surf==='IMP'?'implantado':'leito natural'}${isFinite(d)?' · a '+nf(d,0)+' km da base mais próxima':''}</title></path>`;});
-  g.roads.forEach(r=>{s+=`<text x="${r[1]}" y="${r[2]}" font-size="16" font-weight="800" fill="#1f3a5f" opacity=".55">${r[0]}</text>`;});
+  roadsD.forEach(r=>{s+=`<text x="${r[1]}" y="${r[2]}" font-size="16" font-weight="800" fill="#1f3a5f" opacity=".55">${r[0]}</text>`;});
   g.nodes.forEach(n=>{
     const isSel=sel.includes(n.id);
     if(n.cand){
@@ -417,6 +434,7 @@ function paintMap(id){
         (isSel?`<circle cx="${n.x}" cy="${n.y}" r="13" fill="#0066ff" opacity=".18"/><circle cx="${n.x}" cy="${n.y}" r="8" fill="#0066ff" stroke="#fff" stroke-width="2.5"/>`:`<circle cx="${n.x}" cy="${n.y}" r="7" fill="#fff" stroke="#0066ff" stroke-width="2.5"/>`)+`</g>`;
     } else if(!n.minor){s+=`<circle cx="${n.x}" cy="${n.y}" r="3.5" fill="#fff" stroke="#5b6774" stroke-width="1.6"/>`;}
     else s+=`<circle cx="${n.x}" cy="${n.y}" r="2" fill="#8a94a3"/>`;
+    if(n.label&&n.lead)s+=`<line x1="${n.x}" y1="${n.y+(n.ly<0?-8:8)}" x2="${n.x+n.lx}" y2="${n.y+n.ly+(n.ly<0?3:-12)}" stroke="#c4ccd6" stroke-width="1"/>`;
     if(n.label)s+=`<text x="${n.x+n.lx}" y="${n.y+n.ly}" text-anchor="${n.anc}" font-size="${n.cand?17:14}" font-weight="${isSel?800:n.cand?700:500}" fill="${isSel?'#0053d1':n.cand?'#1f3a5f':'#5b6774'}" style="paint-order:stroke;stroke:#f8fafc;stroke-width:3px">${esc(SH[n.label]||n.label)}</text>`;
   });
   s+='</svg>';if(CITIES[id]&&MAPROAD[id]!=='all')s=linearSVG(id,dEdge,sel,R);$('#svgbox').innerHTML=s;
