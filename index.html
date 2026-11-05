@@ -547,11 +547,12 @@ function stIcon(tipo){const x=norm(tipo);
   if(/alojamento|hospedagem/.test(x))return 'cama';if(/escritorio|sala/.test(x))return 'esc';return 'pin';}
 function stShort(tipo){return tipo.replace(/Escritório da Coordenação-Geral/,'Escritório').replace(/Laboratório fixo.*/,'Laboratório fixo').replace(/Laboratório mobilizável/,'Lab. mobilizável').replace(/Hospedagem em diárias/,'Hospedagem');}
 let RMSTL=[];const RMST={};
+function stIcN(id,name){const ss=(S.st[id]||[]).filter(s=>s.status!==5&&norm(s.cidade)===norm(name));return ss.length?Math.min(3,new Set(ss.map(s=>stIcon(s.tipo))).size):0;}
 function strMark(id,name,P,right,cand){
   const ss=(S.st[id]||[]).filter(s=>s.status!==5&&norm(s.cidade)===norm(name));
   if(!ss.length)return '';
   const ics=[...new Set(ss.map(s=>stIcon(s.tipo)))].slice(0,3);
-  const w=ics.length*16+4,h=18,dx=right?-(36+w/2):(36+w/2),dy=-26;
+  const w=ics.length*16+4,h=18,dx=0,dy=-30;
   const cx=P[0]+dx,cy=P[1]+dy,bx=cx-w/2,by=cy-h/2,key=norm(name);
   const nomes=ss.map(s=>stShort(s.tipo));const uniq=[];nomes.forEach(n=>{const c=nomes.filter(x=>x===n).length;const l=c>1?n+' ×'+c:n;if(!uniq.includes(l))uniq.push(l);});
   RMSTL.push({key,cx,cy,city:name.split(' (')[0].replace('Ubaitaba / Aurelino Leal','Ubaitaba'),nomes:uniq});
@@ -586,17 +587,33 @@ function rmDraw(id){
     const cx=(b.b[0]+b.b[2])/2,cy=(b.b[1]+b.b[3])/2;if(V.z>=2&&cx>v[0]&&cx<v[2]&&cy>v[1]&&cy<v[3]){const q=PX(cy,cx);nm+=`<text x="${q[0].toFixed(0)}" y="${q[1].toFixed(0)}" text-anchor="middle" font-size="${V.z>2.5?13:11}" fill="#9aa6b2" font-style="italic">${esc(b.n)}</text>`;}});
   s+=nm;
   C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);s+=`<line x1="${A[0].toFixed(1)}" y1="${A[1].toFixed(1)}" x2="${B[0].toFixed(1)}" y2="${B[1].toFixed(1)}" stroke="${l.col}" stroke-width="${(6*Math.max(.55,F)).toFixed(1)}" stroke-linecap="round" ${l.gap?'stroke-dasharray="3 8"':''}><title>${esc(l.tt)}</title></line>`;});
-  C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);const len=Math.hypot(B[0]-A[0],B[1]-A[1]);const mx=(A[0]+B[0])/2,my=(A[1]+B[1])/2;if(len<16*F||mx<0||mx>RMW||my<0||my>RMH)return;
-    const tx=nf(l.km,1)+' km',w=tx.length*6.4+10;s+=SG(mx,my,`<g pointer-events="none"><rect x="${(mx-w/2).toFixed(1)}" y="${(my-8).toFixed(1)}" width="${w.toFixed(1)}" height="16" rx="8" fill="#fff" stroke="${l.col}" stroke-width="1.3" opacity=".95"/><text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${l.col}">${tx}</text></g>`);});
-  const seen=new Set();let q=0;
+  /* ---- nomes e km sem sobreposição ---- */
+  const boxes=[];const hit=b=>boxes.some(o=>b[0]<o[2]+2&&b[2]>o[0]-2&&b[1]<o[3]+2&&b[3]>o[1]-2);
+  const vis=[];const seen=new Set();
   C.labs.forEach(p=>{const P=PX(p.lat,p.lon);if(P[0]<-40||P[0]>RMW+40||P[1]<-40||P[1]>RMH+40)return;
-    const kk=p.name+'|'+Math.round(P[0])+'|'+Math.round(P[1]);if(seen.has(kk))return;seen.add(kk);
-    let tt='';
-    if(p.cand)tt+=`<g class="node" data-node="${p.id}"><title>${esc(p.name)} · clique para ${p.sel?'retirar':'incluir'} como base</title>${p.sel?`<circle cx="${P[0]}" cy="${P[1]}" r="16" fill="#0066ff" opacity=".18"/><circle cx="${P[0]}" cy="${P[1]}" r="9" fill="#0066ff" stroke="#fff" stroke-width="3"/>`:`<circle cx="${P[0]}" cy="${P[1]}" r="8" fill="#fff" stroke="#0066ff" stroke-width="3"/>`}</g>`;
-    else tt+=`<circle cx="${P[0]}" cy="${P[1]}" r="4.5" fill="#fff" stroke="#5b6774" stroke-width="2"/>`;
-    const right=(q++)%2===0;const nmx=p.name.split(' (')[0].replace('Ubaitaba / Aurelino Leal','Ubaitaba');
-    tt+=`<text x="${P[0]+(right?13:-13)}" y="${P[1]+5}" text-anchor="${right?'start':'end'}" font-size="${p.cand?15:13}" font-weight="${p.sel?800:p.cand?700:500}" fill="${p.sel?'#0053d1':p.cand?'#1f3a5f':'#5b6774'}" style="paint-order:stroke;stroke:#f7f5ee;stroke-width:4px">${esc(nmx)}</text>`;
-    tt+=strMark(id,p.name,P,right,p.cand);s+=SG(P[0],P[1],tt);});
+    const kk=p.name+'|'+Math.round(P[0])+'|'+Math.round(P[1]);if(seen.has(kk))return;seen.add(kk);vis.push({p,P});});
+  const rd=Math.max(.6,F);vis.forEach(o=>{boxes.push([o.P[0]-8*rd,o.P[1]-8*rd,o.P[0]+8*rd,o.P[1]+8*rd]);});
+  const nDots=boxes.length;
+  vis.forEach(o=>{const n=stIcN(id,o.p.name);if(n){const w=(n*16+4)*F/2+4;boxes.push([o.P[0]-w,o.P[1]-42*F,o.P[0]+w,o.P[1]-16*F]);}});
+  const order=vis.slice().sort((a,b)=>(b.p.sel?2:b.p.cand?1:0)-(a.p.sel?2:a.p.cand?1:0));
+  order.forEach(o=>{const p=o.p,P=o.P;const nmx=p.name.split(' (')[0].replace('Ubaitaba / Aurelino Leal','Ubaitaba');
+    const fs=(p.cand?15:13)*F,w=nmx.length*fs*(p.cand?.58:.54)+6,h=fs+3,off=13*F;
+    const opts=[[1,0],[-1,0],[1,-1],[-1,-1],[1,1],[-1,1],[1,-2],[-1,-2],[1,2],[-1,2]];
+    let pick=null;
+    for(const [sx,ly] of opts){const bl=P[1]+5*F+ly*(fs+2);const x0=sx>0?P[0]+off:P[0]-off-w;const b=[x0,bl-fs,x0+w,bl+4*F];if(!hit(b)){pick={sx,bl,b};break;}}
+    if(!pick&&p.cand){const bl=P[1]+5*F;const x0=P[0]+off;pick={sx:1,bl,b:[x0,bl-fs,x0+w,bl+4*F]};}
+    o.pick=pick;o.nmx=nmx;o.fs=fs;if(pick)boxes.push(pick.b);});
+  const pills=[];
+  C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);const len=Math.hypot(B[0]-A[0],B[1]-A[1]);const mx=(A[0]+B[0])/2,my=(A[1]+B[1])/2;if(mx<0||mx>RMW||my<0||my>RMH)return;
+    const tx=nf(l.km,1)+' km',w=(tx.length*6.4+10)*F;if(len<w*0.6)return;const bb=[mx-w/2,my-8*F,mx+w/2,my+8*F];
+    if(boxes.slice(nDots).some(o=>bb[0]<o[2]+2&&bb[2]>o[0]-2&&bb[1]<o[3]+2&&bb[3]>o[1]-2))return;boxes.push(bb);
+    pills.push(SG(mx,my,`<g pointer-events="none"><rect x="${(mx-(w/F)/2).toFixed(1)}" y="${(my-8).toFixed(1)}" width="${(w/F).toFixed(1)}" height="16" rx="8" fill="#fff" stroke="${l.col}" stroke-width="1.3" opacity=".95"/><text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${l.col}">${tx}</text></g>`));});
+  s+=pills.join('');
+  vis.forEach(o=>{const p=o.p,P=o.P;let tt='';
+    if(p.cand)tt+=`<g class="node" data-node="${p.id}"><title>${esc(p.name)} · clique para ${p.sel?'retirar':'incluir'} como base</title>${p.sel?`<circle cx="${P[0]}" cy="${P[1]}" r="${16*rd}" fill="#0066ff" opacity=".18"/><circle cx="${P[0]}" cy="${P[1]}" r="${9*rd}" fill="#0066ff" stroke="#fff" stroke-width="3"/>`:`<circle cx="${P[0]}" cy="${P[1]}" r="${8*rd}" fill="#fff" stroke="#0066ff" stroke-width="3"/>`}</g>`;
+    else tt+=`<circle cx="${P[0]}" cy="${P[1]}" r="${4.5*rd}" fill="#fff" stroke="#5b6774" stroke-width="2"><title>${esc(o.nmx)}</title></circle>`;
+    if(o.pick){const sx=o.pick.sx;tt+=`<text x="${(P[0]+sx*13*F).toFixed(1)}" y="${o.pick.bl.toFixed(1)}" text-anchor="${sx>0?'start':'end'}" font-size="${o.fs.toFixed(1)}" font-weight="${p.sel?800:p.cand?700:500}" fill="${p.sel?'#0053d1':p.cand?'#1f3a5f':'#5b6774'}" style="paint-order:stroke;stroke:#f7f5ee;stroke-width:4px">${esc(o.nmx)}</text>`;}
+    s+=tt;s+=SG(P[0],P[1],strMark(id,p.name,P,o.pick?o.pick.sx>0:true,p.cand));});
   {const cnt={};C.plaq.forEach(p=>{const P=PX(p.lat,p.lon);if(P[0]<-60||P[0]>RMW+60||P[1]<-60||P[1]>RMH+60)return;
     const key=p.t+p.lat.toFixed(1)+p.lon.toFixed(1);const m=cnt[key]=(cnt[key]||0)+1;const mm=m-1;const ini=p.t==='INÍCIO';
     const dx=(ini?-46:46)*F,dy=((ini?-26:26)+(ini?-1:1)*mm*32)*F;const X=P[0]+dx,Y=P[1]+dy,col=ROADCOL[p.road]||'#444';
@@ -616,7 +633,7 @@ function paintRealMap(id){
   const allBtn=`<a class="btn sm pri" style="text-decoration:none" target="_blank" rel="noopener" href="${gmapsAllUrl(id)}" title="Uma rota única passando pelas rodovias do lote, em sequência">Abrir todas as rodovias no Google Maps ↗</a>`;
   const links=segs.map(o=>{const u=gmapsUrl(o.sg);return u?`<a class="btn sm" style="text-decoration:none" target="_blank" rel="noopener" href="${u}">Abrir ${esc(o.road)} · ${esc(o.sg.t)} no Google Maps ↗</a>`:''}).join('');
   el.innerHTML=`<div class="card" style="margin-bottom:16px"><h3>Mapa das rodovias · ${LOTS[id].nome}</h3>
-   <div class="hint">Fundo com os limites reais dos municípios da Bahia (base do IBGE). As rodovias ligam as cidades em linha reta, com posições aproximadas, e não seguem o traçado exato da estrada. Use a roda do mouse ou os botões + e − para dar zoom, e arraste para mover o mapa. Para ver a rota sobre o mapa real, use os botões "Abrir no Google Maps" abaixo.</div>
+   <div class="hint">Fundo com os limites reais dos municípios da Bahia (base do IBGE). As rodovias ligam as cidades em linha reta, com posições aproximadas, e não seguem o traçado exato da estrada. Use a roda do mouse ou os botões + e − para dar zoom, e arraste para mover o mapa. Nomes e km que não cabem na tela aparecem ao dar zoom. Para ver a rota sobre o mapa real, use os botões "Abrir no Google Maps" abaixo.</div>
    <div class="tools" id="rmroads">${groups.map(x=>`<button class="btn sm ${RMROAD[id]===x.road?'pri':''}" data-rm="${x.road}">${x.road}</button>`).join('')}<button class="btn sm ${RMROAD[id]==='all'?'pri':''}" data-rm="all">Todas as rodovias</button></div>
    <div style="position:relative"><div class="svgbox" id="rmbox" style="overflow:hidden;cursor:grab;touch-action:none;user-select:none"></div>
     <div style="position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:6px"><button class="btn sm" data-z="in" style="width:36px;font-size:18px;padding:4px 0">+</button><button class="btn sm" data-z="out" style="width:36px;font-size:18px;padding:4px 0">−</button><button class="btn sm" data-z="reset" style="width:36px;padding:6px 0" title="Ver o trecho inteiro">⤢</button></div></div>
