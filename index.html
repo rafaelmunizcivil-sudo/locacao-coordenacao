@@ -572,6 +572,8 @@ function strCallout(id){
 function rmDraw(id){
   RMSTL=[];
   const C=RMC[id],V=RMV[id];const sc=C.sc0*V.z,k=C.k;
+  const F=Math.min(1,Math.max(.42,Math.pow(V.z,.8)));/* textos e marcadores diminuem junto com o zoom */
+  const SG=(x,y,inner)=>F>=.999?inner:`<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${F.toFixed(3)}) translate(${(-x).toFixed(1)} ${(-y).toFixed(1)})">${inner}</g>`;
   const PX=(lat,lon)=>[RMW/2+(lon-V.clon)*k*sc,RMH/2+(V.clat-lat)*sc];
   const hw=RMW/2/(k*sc),hh=RMH/2/sc,m=0.15;const v=[V.clon-hw-m,V.clat-hh-m,V.clon+hw+m,V.clat+hh+m];
   let s=`<svg viewBox="0 0 ${RMW} ${RMH}" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Arial,sans-serif" style="display:block;width:100%;height:auto;min-width:0"><rect width="100%" height="100%" fill="#dbe8f2"/>`;
@@ -583,22 +585,23 @@ function rmDraw(id){
     s+='<path d="'+b.r.map(r=>'M'+r.map(p=>{const q=PX(p[1],p[0]);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join('L')+'Z').join('')+'" fill="#f7f5ee" fill-rule="evenodd" stroke="#c3ccd6" stroke-width="1.2" stroke-linejoin="round"><title>'+esc(b.n)+'</title></path>';
     const cx=(b.b[0]+b.b[2])/2,cy=(b.b[1]+b.b[3])/2;if(V.z>=2&&cx>v[0]&&cx<v[2]&&cy>v[1]&&cy<v[3]){const q=PX(cy,cx);nm+=`<text x="${q[0].toFixed(0)}" y="${q[1].toFixed(0)}" text-anchor="middle" font-size="${V.z>2.5?13:11}" fill="#9aa6b2" font-style="italic">${esc(b.n)}</text>`;}});
   s+=nm;
-  C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);s+=`<line x1="${A[0].toFixed(1)}" y1="${A[1].toFixed(1)}" x2="${B[0].toFixed(1)}" y2="${B[1].toFixed(1)}" stroke="${l.col}" stroke-width="6" stroke-linecap="round" ${l.gap?'stroke-dasharray="3 8"':''}><title>${esc(l.tt)}</title></line>`;});
-  C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);const len=Math.hypot(B[0]-A[0],B[1]-A[1]);const mx=(A[0]+B[0])/2,my=(A[1]+B[1])/2;if(len<16||mx<0||mx>RMW||my<0||my>RMH)return;
-    const tx=nf(l.km,1)+' km',w=tx.length*6.4+10;s+=`<g pointer-events="none"><rect x="${(mx-w/2).toFixed(1)}" y="${(my-8).toFixed(1)}" width="${w.toFixed(1)}" height="16" rx="8" fill="#fff" stroke="${l.col}" stroke-width="1.3" opacity=".95"/><text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${l.col}">${tx}</text></g>`;});
+  C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);s+=`<line x1="${A[0].toFixed(1)}" y1="${A[1].toFixed(1)}" x2="${B[0].toFixed(1)}" y2="${B[1].toFixed(1)}" stroke="${l.col}" stroke-width="${(6*Math.max(.55,F)).toFixed(1)}" stroke-linecap="round" ${l.gap?'stroke-dasharray="3 8"':''}><title>${esc(l.tt)}</title></line>`;});
+  C.lines.forEach(l=>{const A=PX(...l.a),B=PX(...l.b);const len=Math.hypot(B[0]-A[0],B[1]-A[1]);const mx=(A[0]+B[0])/2,my=(A[1]+B[1])/2;if(len<16*F||mx<0||mx>RMW||my<0||my>RMH)return;
+    const tx=nf(l.km,1)+' km',w=tx.length*6.4+10;s+=SG(mx,my,`<g pointer-events="none"><rect x="${(mx-w/2).toFixed(1)}" y="${(my-8).toFixed(1)}" width="${w.toFixed(1)}" height="16" rx="8" fill="#fff" stroke="${l.col}" stroke-width="1.3" opacity=".95"/><text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${l.col}">${tx}</text></g>`);});
   const seen=new Set();let q=0;
   C.labs.forEach(p=>{const P=PX(p.lat,p.lon);if(P[0]<-40||P[0]>RMW+40||P[1]<-40||P[1]>RMH+40)return;
     const kk=p.name+'|'+Math.round(P[0])+'|'+Math.round(P[1]);if(seen.has(kk))return;seen.add(kk);
-    if(p.cand)s+=`<g class="node" data-node="${p.id}"><title>${esc(p.name)} · clique para ${p.sel?'retirar':'incluir'} como base</title>${p.sel?`<circle cx="${P[0]}" cy="${P[1]}" r="16" fill="#0066ff" opacity=".18"/><circle cx="${P[0]}" cy="${P[1]}" r="9" fill="#0066ff" stroke="#fff" stroke-width="3"/>`:`<circle cx="${P[0]}" cy="${P[1]}" r="8" fill="#fff" stroke="#0066ff" stroke-width="3"/>`}</g>`;
-    else s+=`<circle cx="${P[0]}" cy="${P[1]}" r="4.5" fill="#fff" stroke="#5b6774" stroke-width="2"/>`;
+    let tt='';
+    if(p.cand)tt+=`<g class="node" data-node="${p.id}"><title>${esc(p.name)} · clique para ${p.sel?'retirar':'incluir'} como base</title>${p.sel?`<circle cx="${P[0]}" cy="${P[1]}" r="16" fill="#0066ff" opacity=".18"/><circle cx="${P[0]}" cy="${P[1]}" r="9" fill="#0066ff" stroke="#fff" stroke-width="3"/>`:`<circle cx="${P[0]}" cy="${P[1]}" r="8" fill="#fff" stroke="#0066ff" stroke-width="3"/>`}</g>`;
+    else tt+=`<circle cx="${P[0]}" cy="${P[1]}" r="4.5" fill="#fff" stroke="#5b6774" stroke-width="2"/>`;
     const right=(q++)%2===0;const nmx=p.name.split(' (')[0].replace('Ubaitaba / Aurelino Leal','Ubaitaba');
-    s+=`<text x="${P[0]+(right?13:-13)}" y="${P[1]+5}" text-anchor="${right?'start':'end'}" font-size="${p.cand?15:13}" font-weight="${p.sel?800:p.cand?700:500}" fill="${p.sel?'#0053d1':p.cand?'#1f3a5f':'#5b6774'}" style="paint-order:stroke;stroke:#f7f5ee;stroke-width:4px">${esc(nmx)}</text>`;
-    s+=strMark(id,p.name,P,right,p.cand);});
+    tt+=`<text x="${P[0]+(right?13:-13)}" y="${P[1]+5}" text-anchor="${right?'start':'end'}" font-size="${p.cand?15:13}" font-weight="${p.sel?800:p.cand?700:500}" fill="${p.sel?'#0053d1':p.cand?'#1f3a5f':'#5b6774'}" style="paint-order:stroke;stroke:#f7f5ee;stroke-width:4px">${esc(nmx)}</text>`;
+    tt+=strMark(id,p.name,P,right,p.cand);s+=SG(P[0],P[1],tt);});
   {const cnt={};C.plaq.forEach(p=>{const P=PX(p.lat,p.lon);if(P[0]<-60||P[0]>RMW+60||P[1]<-60||P[1]>RMH+60)return;
     const key=p.t+p.lat.toFixed(1)+p.lon.toFixed(1);const m=cnt[key]=(cnt[key]||0)+1;const mm=m-1;const ini=p.t==='INÍCIO';
-    const dx=ini?-46:46,dy=(ini?-26:26)+(ini?-1:1)*mm*32;const X=P[0]+dx,Y=P[1]+dy,col=ROADCOL[p.road]||'#444';
+    const dx=(ini?-46:46)*F,dy=((ini?-26:26)+(ini?-1:1)*mm*32)*F;const X=P[0]+dx,Y=P[1]+dy,col=ROADCOL[p.road]||'#444';
     s+=`<g pointer-events="none"><line x1="${P[0].toFixed(1)}" y1="${P[1].toFixed(1)}" x2="${X.toFixed(1)}" y2="${Y.toFixed(1)}" stroke="${col}" stroke-width="2" stroke-dasharray="3 3"/><circle cx="${P[0].toFixed(1)}" cy="${P[1].toFixed(1)}" r="5" fill="${col}" stroke="#fff" stroke-width="2"/>
-      <g transform="translate(${X.toFixed(1)},${Y.toFixed(1)}) scale(.72)"><path d="M-30,-20 h60 v24 q0,14 -30,22 q-30,-8 -30,-22 z" fill="${col}" stroke="#fff" stroke-width="2.5"/><text x="0" y="-5" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">${esc(p.road)}</text><text x="0" y="10" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff" letter-spacing=".06em">${p.t}</text></g></g>`;});}
+      <g transform="translate(${X.toFixed(1)},${Y.toFixed(1)}) scale(${(.72*F).toFixed(3)})"><path d="M-30,-20 h60 v24 q0,14 -30,22 q-30,-8 -30,-22 z" fill="${col}" stroke="#fff" stroke-width="2.5"/><text x="0" y="-5" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">${esc(p.road)}</text><text x="0" y="10" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff" letter-spacing=".06em">${p.t}</text></g></g>`;});}
   s+=strCallout(id);
   s+=`<g transform="translate(${RMW-40},40)"><text x="0" y="0" text-anchor="middle" font-size="14" font-weight="800" fill="#5b6774">N</text><path d="M0,6 L0,30 M-6,14 L0,4 L6,14" stroke="#5b6774" stroke-width="2.5" fill="none"/></g>`;
   const km=(80/sc)*111.2*1; /* 80 px em km (1 grau de latitude = 111,2 km) */
