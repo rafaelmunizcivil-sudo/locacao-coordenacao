@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // FASE DE MONTAGEM: sem login. Qualquer pessoa com o endereço do painel consegue ler e gravar este único documento.
+    // Antes de colocar dados sensíveis ou divulgar o link, troque pelo conteúdo de firestore.rules.com-login
+    // e ative "exigirLogin: true" no firebase-config.js.
+    match /locacao/{doc} {
+      allow read, write: if true;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

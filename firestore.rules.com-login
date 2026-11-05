@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Só os e-mails desta lista leem e gravam os dados do painel.
+    // Para dar acesso a mais alguém, crie o usuário em Authentication e inclua o e-mail aqui.
+    match /locacao/{doc} {
+      allow read, write: if request.auth != null
+        && request.auth.token.email in [
+          'rafaelmunizcivil@gmail.com'
+        ];
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
